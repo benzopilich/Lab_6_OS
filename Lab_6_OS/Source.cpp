@@ -3,7 +3,6 @@
 #include <future>
 #include <iostream>
 #include <vector>
-#include <cmath>
 #include <chrono>
 using namespace std;
 
@@ -18,9 +17,8 @@ void work(vector<__int16>& arr, mutex& mtx, condition_variable& cv, bool& work_r
     // Поиск квадратов чисел до 12 и замена остальных на 0
     int j = 0; // Индекс для вставки
     for (int i = 0; i < arr.size(); ++i) {
-        int double_val = arr[i]*arr[i];
-        if (double_val <= 12) {
-            arr[j] = double_val; // сохраняем значение
+        if (arr[i] <= 12) {
+            arr[j] = arr[i]*arr[i]; // сохраняем значение
             j++;
         }
     }
