@@ -1,13 +1,13 @@
-#include <mutex>
 #include <thread>
 #include <future>
 #include <iostream>
 #include <vector>
 #include <chrono>
+#include <semaphore> // дл€ бинарного семафора
 using namespace std;
 
-void work(vector<__int16>& arr, mutex& mtx, condition_variable& cv, bool& work_ready) {
-    unique_lock<mutex> lock(mtx); // блокировка дл€ работы с данными
+void work(vector<__int16>& arr, binary_semaphore& semaphore, condition_variable_any& cv, bool& work_ready) {
+    semaphore.acquire(); // блокировка дл€ работы с данными
 
     // «апросить у пользовател€ временной интервал дл€ отдыха
     int sleep_time;
@@ -18,7 +18,7 @@ void work(vector<__int16>& arr, mutex& mtx, condition_variable& cv, bool& work_r
     int j = 0; // »ндекс дл€ вставки
     for (int i = 0; i < arr.size(); ++i) {
         if (arr[i] <= 12) {
-            arr[j] = arr[i]*arr[i]; // сохран€ем значение
+            arr[j] = arr[i] * arr[i]; // сохран€ем значение
             j++;
         }
     }
@@ -31,12 +31,13 @@ void work(vector<__int16>& arr, mutex& mtx, condition_variable& cv, bool& work_r
 
     work_ready = true;
     cout << endl << "Work is done!" << endl;
+    semaphore.release(); // освобождаем семафор
     cv.notify_all(); // уведомл€ем остальные потоки
 }
 
-void countElements(vector<__int16>& arr, mutex& mtx, condition_variable& cv, bool& work_ready, promise<int>&& prom) {
-    unique_lock<mutex> lock(mtx);
-    cv.wait(lock, [&work_ready] { return work_ready; }); // ждем, пока work завершит свою работу
+void countElements(vector<__int16>& arr, binary_semaphore& semaphore, condition_variable_any& cv, bool& work_ready, promise<int>&& prom) {
+    semaphore.acquire();
+    cv.wait(semaphore, [&work_ready] { return work_ready; }); // ждем, пока work завершит свою работу
 
     // ѕодсчет ненулевых элементов
     int non_zero_count = 0;
@@ -48,11 +49,12 @@ void countElements(vector<__int16>& arr, mutex& mtx, condition_variable& cv, boo
 
     cout << endl << "Count elements is done!" << endl;
     prom.set_value(non_zero_count); // отправл€ем результат в main
+    semaphore.release(); // освобождаем семафор
 }
 
 int main() {
-    mutex mtx;
-    condition_variable cv;
+    binary_semaphore semaphore(1); 
+    condition_variable_any cv;
     bool work_ready = false;
     int n;
     promise<int> prom;
@@ -71,13 +73,14 @@ int main() {
     cout << endl;
 
     // «апускаем потоки
-    thread wThread(work, ref(arr), ref(mtx), ref(cv), ref(work_ready));
-    thread cThread(countElements, ref(arr), ref(mtx), ref(cv), ref(work_ready), move(prom));
+    thread wThread(work, ref(arr), ref(semaphore), ref(cv), ref(work_ready));
+    thread cThread(countElements, ref(arr), ref(semaphore), ref(cv), ref(work_ready), move(prom));
 
     // ∆дем завершени€ работы потока work
     {
-        unique_lock<mutex> lock(mtx);
-        cv.wait(lock, [&work_ready] { return work_ready; });
+        semaphore.acquire();
+        cv.wait(semaphore, [&work_ready] { return work_ready; });
+        semaphore.release();
     }
 
     // ¬ыводим итоговый массив
